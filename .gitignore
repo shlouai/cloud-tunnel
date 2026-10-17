@@ -1,0 +1,4 @@
+ssctl.conf
+*.state
+*.pem
+clash-*.yaml

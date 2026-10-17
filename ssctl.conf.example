@@ -1,0 +1,27 @@
+# ssctl.sh configuration
+#
+# Copy this file to ssctl.conf and edit it:
+#     cp ssctl.conf.example ssctl.conf
+#
+# ssctl.conf contains the host's private key path and must not be committed.
+
+# --- required ---------------------------------------------------------------
+SERVER_HOST="1.2.3.4"                 # EC2 public IP or public DNS name
+SSH_USER="ubuntu"                     # Ubuntu AMI: ubuntu / Amazon Linux: ec2-user
+SSH_KEY="$HOME/.ssh/ec2.pem"          # private key for that instance
+
+# --- optional ---------------------------------------------------------------
+SSH_PORT="22"
+XRAY_PORT="443"                       # must be free on the server AND open in the security group
+
+# Address written into the client config. Defaults to SERVER_HOST. Setting the
+# public IP avoids any DNS dependency on the client side.
+# CLIENT_HOST="1.2.3.4"
+
+# Reality disguise target. It has to support TLS 1.3 and HTTP/2, must not sit
+# behind a CDN, and should be a site you don't mind looking like.
+REALITY_DEST="www.bing.com:443"
+REALITY_SERVER_NAME="www.bing.com"       # must match a name in the target's certificate
+
+PROFILE_NAME="ec2-reality"            # node name printed for Clash
+XRAY_VERSION="latest"                 # or pin a tag, e.g. "v26.3.27"
