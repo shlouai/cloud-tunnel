@@ -1,4 +1,4 @@
-# ec2ss
+# cloud-tunnel
 
 在**已经开好的** EC2 实例上，通过 SSH 一键部署和管理 **Xray VLESS + REALITY**。
 
