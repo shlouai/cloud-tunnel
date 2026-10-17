@@ -12,7 +12,6 @@ VERSION="1.0.0"
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 CONF="${SSCTL_CONF:-$SCRIPT_DIR/ssctl.conf}"
 STATE_DIR="${SSCTL_STATE_DIR:-$HOME/.cloud-tunnel}"
-LEGACY_STATE_DIR="$HOME/.ec2ss"
 
 REMOTE_BIN="/usr/local/bin/xray"
 REMOTE_ETC="/usr/local/etc/xray"
@@ -139,18 +138,8 @@ state_file() {
 }
 
 load_state() {
-    local f legacy
+    local f
     f="$(state_file)"
-    if [[ ! -f "$f" && -z "${SSCTL_STATE_DIR:-}" ]]; then
-        # migrate state written by older versions (before the project rename)
-        legacy="$LEGACY_STATE_DIR/${SERVER_HOST//[^A-Za-z0-9._-]/_}.state"
-        if [[ -f "$legacy" ]]; then
-            mkdir -p "$STATE_DIR"
-            chmod 700 "$STATE_DIR" 2>/dev/null || true
-            cp -p "$legacy" "$f"
-            log "migrated state from $legacy"
-        fi
-    fi
     [[ -f "$f" ]] || return 1
     # shellcheck disable=SC1090
     source "$f"
