@@ -27,6 +27,7 @@ XRAY_PORT="443"
 REALITY_DEST="www.bing.com:443"
 REALITY_SERVER_NAME="www.bing.com"
 CLIENT_HOST=""
+CLIENT_HOST_EXPLICIT=0
 PROFILE_NAME="ec2-reality"
 XRAY_VERSION="latest"
 
@@ -87,6 +88,30 @@ expand_tilde() {
     esac
 }
 
+# Resolves a host name to an IPv4 address. Prints nothing and returns non-zero
+# when no resolver is available or the lookup fails.
+resolve_ipv4() {
+    local host="$1" ip=""
+    if [[ "$host" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
+        printf '%s\n' "$host"
+        return 0
+    fi
+    if command -v getent >/dev/null 2>&1; then
+        ip="$(getent ahostsv4 "$host" 2>/dev/null | awk 'NR==1{print $1}')" || ip=""
+    fi
+    if [[ -z "$ip" ]] && command -v dig >/dev/null 2>&1; then
+        ip="$(dig +short A "$host" 2>/dev/null | grep -Eo '^([0-9]{1,3}\.){3}[0-9]{1,3}$' | head -n1)" || ip=""
+    fi
+    if [[ -z "$ip" ]] && command -v nslookup >/dev/null 2>&1; then
+        ip="$(nslookup "$host" 2>/dev/null | grep -Eo '([0-9]{1,3}\.){3}[0-9]{1,3}' | tail -n1)" || ip=""
+    fi
+    if [[ -z "$ip" ]] && command -v python >/dev/null 2>&1; then
+        ip="$(python -c 'import socket,sys; print(socket.gethostbyname(sys.argv[1]))' "$host" 2>/dev/null)" || ip=""
+    fi
+    [[ -n "$ip" ]] || return 1
+    printf '%s\n' "$ip"
+}
+
 # Git Bash may resolve `ssh` to the native Windows binary, which needs a
 # Windows-style key path instead of a POSIX one.
 ssh_path() {
@@ -116,9 +141,18 @@ Copy the example first:  cp ssctl.conf.example ssctl.conf"
 
     [[ "$XRAY_PORT" =~ ^[0-9]+$ ]] || die "XRAY_PORT must be a number, got: $XRAY_PORT"
 
-    # Address written into the client config. Defaults to the SSH host, but an
-    # IP avoids any DNS dependency on the client side.
-    CLIENT_HOST="${CLIENT_HOST:-$SERVER_HOST}"
+    # Address written into the client config. An explicit CLIENT_HOST wins;
+    # otherwise resolve the server to its current IPv4, so a restarted EC2
+    # instance (new public IP) is picked up on every deploy/config run.
+    if [[ -n "$CLIENT_HOST" ]]; then
+        CLIENT_HOST_EXPLICIT=1
+    else
+        CLIENT_HOST="$(resolve_ipv4 "$SERVER_HOST" || true)"
+        if [[ -z "$CLIENT_HOST" ]]; then
+            warn "could not resolve $SERVER_HOST to an IPv4; using the host name"
+            CLIENT_HOST="$SERVER_HOST"
+        fi
+    fi
 
     SSH_ARGS=(
         -i "$SSH_KEY_RESOLVED"
@@ -652,6 +686,7 @@ EOF
 
 print_client_config() {
     local uri out safe
+    log "client address: $CLIENT_HOST:$XRAY_PORT"
     uri="vless://${UUID}@${CLIENT_HOST}:${XRAY_PORT}?encryption=none&flow=xtls-rprx-vision&security=reality&sni=${REALITY_SERVER_NAME}&fp=chrome&pbk=${PUBLIC_KEY}&sid=${SHORT_ID}&type=tcp#${PROFILE_NAME}"
 
     printf '\n================ VLESS URI ================\n%s\n\n' "$uri"
@@ -779,8 +814,13 @@ cmd_config() {
     PUBLIC_KEY="${STATE_PUBLIC_KEY:-}"
     SHORT_ID="${STATE_SHORT_ID:-}"
     SERVER_HOST="${STATE_HOST:-$SERVER_HOST}"
-    CLIENT_HOST="${STATE_CLIENT_HOST:-$CLIENT_HOST}"
     XRAY_PORT="${STATE_PORT:-$XRAY_PORT}"
+    # A stale saved client address must not outlive an instance restart: when
+    # no explicit CLIENT_HOST is configured, resolve the current server again.
+    if (( ! CLIENT_HOST_EXPLICIT )); then
+        CLIENT_HOST="$(resolve_ipv4 "$SERVER_HOST" || true)"
+        [[ -n "$CLIENT_HOST" ]] || CLIENT_HOST="${STATE_CLIENT_HOST:-$SERVER_HOST}"
+    fi
     REALITY_SERVER_NAME="${STATE_SERVER_NAME:-$REALITY_SERVER_NAME}"
     PROFILE_NAME="${STATE_PROFILE:-$PROFILE_NAME}"
 
