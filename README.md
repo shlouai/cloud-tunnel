@@ -100,10 +100,12 @@ clash-<PROFILE_NAME>.yaml
 部署后，生成的 UUID / 密钥 / shortId 会存到本机：
 
 ```
-~/.ec2ss/<SERVER_HOST>.state     # 权限 600
+~/.cloud-tunnel/<SERVER_HOST>.state     # 权限 600
 ```
 
 因此 `config`、`start`、`stop` 都不需要重新生成。私钥只存在这个文件里，**不会打印到终端**。
+
+旧版本把状态存在 `~/.ec2ss/`，首次运行时会自动迁移到 `~/.cloud-tunnel/`。
 
 重新 `deploy` 默认复用已有凭据；加 `--force` 才会重新生成（客户端配置也会随之变化）。
 
@@ -144,6 +146,6 @@ bash ssctl.sh logs
 
 ## 安全说明
 
-- `ssctl.conf` 和 `~/.ec2ss/*.state` 已在 `.gitignore` 中，不要提交。
+- `ssctl.conf` 和 `~/.cloud-tunnel/*.state` 已在 `.gitignore` 中，不要提交。
 - 服务以 `nobody` 运行（若系统无该用户则退回 `root`），且只保留绑定特权端口所需的能力。
 - 本脚本不做多用户、流量统计、订阅服务，也不修改 AWS 安全组。
